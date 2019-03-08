@@ -27,7 +27,7 @@ def get_dm(user_id, before_id=None, limit=100):
     query = '/direct_messages'
     return get(query, other_user_id=user_id, before_id=before_id, limit=limit)['direct_messages']
 
-def search_messages(text, group, dm=False):
+def search_messages(text, group, dm=False, case_sensitive=True):
     get_function = get_dm if dm else get_messages
     last = None
     buffer = get_function(group)
@@ -36,7 +36,7 @@ def search_messages(text, group, dm=False):
             # uploads don't need text
             if message['text'] is not None:
                 for t in text:
-                    if re.search(t, message['text']):
+                    if re.search(t, message['text'], flags=0 if case_sensitive else re.IGNORECASE):
                         yield message
         last = buffer[-1]['id']
         buffer = get_function(group, before_id=last)
@@ -93,15 +93,17 @@ def main():
                         dest='show_users', help="don't show who said something")
     parser.add_argument('-d', '--date', action='store_true',
                         help='show the date a message was sent')
+    parser.add_argument('-i', '--ignore-case', dest='ignorecase', action='store_true',
+                        help='search ignoring case')
     args = parser.parse_args()
     # https://bugs.python.org/issue16399
     if args.group is None:
         args.group = ['ACM']
     for group in get_group(args.group):
-        for message in search_messages(args.text, group):
+        for message in search_messages(args.text, group, case_sensitive=not args.ignorecase):
             print_message(message, show_users=args.show_users, show_date=args.date)
     for user in get_group(args.group, dm=True):
-        for message in search_messages(args.text, user, dm=True):
+        for message in search_messages(args.text, user, dm=True, case_sensitive=not args.insensitive):
             print_message(message, show_users=args.show_users, show_date=args.date)
 
 if __name__ == '__main__':
