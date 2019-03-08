@@ -1,14 +1,13 @@
 import re
 import requests
-from sys import stderr
+from sys import stderr, exit
 from datetime import datetime
+import signal
 
 from login import access_token
 
 groupme = 'https://api.groupme.com/v3'
 
-class NotModified(RuntimeError):
-    pass
 
 def get(url, **params):
     params['token'] = access_token
@@ -16,12 +15,13 @@ def get(url, **params):
     if 200 <= response.status_code < 300:
         return response.json()['response']
     if response.status_code == 304:
-        raise NotModified()
+        print("WARN: Empty request to '%s'" % (groupme + url), file=stderr)
+        return {}
     raise RuntimeError(response, "Got bad status code")
 
 def get_messages(group, before_id=None, limit=100):
     query = '/groups/' + group + '/messages'
-    return get(query, before_id=before_id, limit=limit)['messages']
+    return get(query, before_id=before_id, limit=limit).get('messages', [])
 
 def get_dm(user_id, before_id=None, limit=100):
     query = '/direct_messages'
@@ -97,6 +97,7 @@ def main():
     # https://bugs.python.org/issue16399
     if args.group is None:
         args.group = ['ACM']
+    signal.signal(signal.SIGINT, lambda s, f: exit(1))  # Allow cleaner quit
     for group in get_group(args.group):
         for message in search_messages(args.text, group):
             print_message(message, show_users=args.show_users, show_date=args.date)
